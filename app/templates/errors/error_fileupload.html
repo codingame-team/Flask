@@ -1,0 +1,13 @@
+{# app/templates/homepage.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}Erreur de chargement fichier{% endblock %}
+
+{% block content %}
+	<h1>Bienvenue sur mon site web développé en Flask.</h1>
+	<p>Le chargement du fichier {{filename}} a échoué!</p>
+	<p>Message d'erreur: {{error_message}}</p>
+{% endblock %}
+
+

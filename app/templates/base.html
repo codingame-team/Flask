@@ -1,0 +1,17 @@
+{# app/templates/base.html #}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Flask{% endblock %}</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% block content %}{% endblock %}
+    <footer>
+        {% block footer %} <a href="/about">A propos de moi</a>{% endblock %}
+    </footer>
+</body>
+
+</html>
