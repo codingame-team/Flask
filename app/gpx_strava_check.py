@@ -90,6 +90,7 @@ def gpx_covid_regulations_check_compliance(gpx_file, domicile):
     distance_not_OK = False
     amende = False
     exceeded_time = 0
+    exceeded_distance = 0
 
     if d_runner > d_max:
         distance_not_OK = True
