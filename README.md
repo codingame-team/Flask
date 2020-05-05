@@ -15,3 +15,5 @@ L'intérêt pédagogique de ce projet est multiple:
 - Il réutilise des fonctions communes utilisées dans la version initiale du programme exécuté en ligne de commande en utilisant les propriétés intrinsèques du langages python (organisation des codes en modules, et définition du programme principal par la fonction __main__)
 - Il montre les différentes couches utilisées (Front-End et Back-End) et met en valeur les caractéristiques de chacun de ces métiers.
 - Il permet aussi d'intégrer des algorithmes de calcul et de s'y concentrer de manière indépendante sans avoir à s'occuper des autres couches.
+
+Site en production! https://pmourey.pythonanywhere.com/ (u/p: phil/mic2020)
