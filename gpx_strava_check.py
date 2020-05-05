@@ -44,7 +44,7 @@ def gpx_covid_regulations_check_compliance(gpx_file, domicile):
     for track in gpx.tracks:
         for segment in track.segments:
             for point in segment.points:
-                gps_pos = Position_GPS(point.latitude, point.longitude, "")
+                gps_pos = Position_GPS(point.longitude, point.latitude, "")
                 distance = domicile.calculateDistanceVolOiseau(gps_pos)
                 if distance > d_max and distance > d_runner:
                     d_runner = distance
@@ -74,7 +74,7 @@ def gpx_covid_regulations_check_compliance(gpx_file, domicile):
     # print("America/New_York", new_york_time.strftime('%Y-%m-%d_%H-%M-%S'))
     # print("America/Los_Angeles", los_angeles_time.strftime('%Y-%m-%d_%H-%M-%S'))
 
-    locale.setlocale(locale.LC_TIME, '')
+    locale.setlocale(locale.LC_TIME, 'fr_FR')
     time_bound = gpx.get_time_bounds()
     #print("Old Timezone", time_bound.start_time.tzinfo)
     start_time = time_bound.start_time.astimezone(paris)
@@ -83,37 +83,38 @@ def gpx_covid_regulations_check_compliance(gpx_file, domicile):
     day = start_time.strftime('%A %d %B %Y')
     hour = start_time.strftime('%Hh%M')
     elapsed_time = gpx.get_duration()
-    elapsed_minutes = elapsed_time / 60
     distance2d = gpx.length_2d() / 1000
     distance3d = gpx.length_3d() / 1000
-    duration_not_OK = False
-    distance_not_OK = False
+    duration_OK = True
+    distance_OK = True
     amende = False
     exceeded_time = 0
     exceeded_distance = 0
 
     if d_runner > d_max:
-        distance_not_OK = True
+        distance_OK = False
         exceeded_distance = d_runner - d_max
     if elapsed_time > 3600:
-        duration_not_OK = True
+        duration_OK = False
         exceeded_time = elapsed_time - 3600
 
-    if duration_not_OK or distance_not_OK:
+    if not (duration_OK and distance_OK):
         amende = True
 
-    return (day, hour, amende, distance3d, elapsed_time, distance_not_OK, duration_not_OK, exceeded_time, exceeded_distance)
+    return day, hour, amende, distance3d, elapsed_time, distance_OK, duration_OK, exceeded_time, exceeded_distance
 
 if __name__ == '__main__':
 
-    def afficherMessage(day, hour, amende, distance, distance_not_OK, duration_not_OK, exceeded_time, exceeded_distance):
+    def afficherMessage(day, hour, amende, elapsed_time, distance,  distance_OK, duration_OK, exceeded_time, exceeded_distance):
+        elapsed_hours = elapsed_time / 3600
+        elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
         print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
-        print("Le {}, vous avez débuté une activité sportive à {} et parcouru une distance autour de votre domicile de {:0.1f} km".format(
-                day, hour, distance))
-        if distance_not_OK:
+        print("Le {}, vous avez débuté une activité sportive à {} et parcouru une distance autour de votre domicile de {:0.1f} km pour une durée de {}h{}mn".format(
+                day, hour, distance, int(elapsed_hours), round(elapsed_minutes)))
+        if not distance_OK:
             print("Vous avez dépassé le périmètre autorisé d'1km autour de votre domicile de: {:0.3f} km!".format(
                 exceeded_distance))
-        if duration_not_OK:
+        if not duration_OK:
             exceeded_minutes = exceeded_time / 3600
             exceeded_seconds = (exceeded_minutes - int(exceeded_minutes)) * 60
             print("Vous avez dépassé la durée autorisée d'1h autour de votre domicile de: {} minutes et {} secondes!".format(
@@ -144,18 +145,24 @@ if __name__ == '__main__':
     nombre_infractions = 0
     total_distance = 0
     total_duration = 0
+    elapsed_hours = 0
+    elapsed_minutes = 0
     print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
     print("Analyse des fichiers GPX dans le répertoire courant")
     for filename in sorted(os.listdir(chemin)):
         if filename.endswith('.gpx'):
             gpx_file = open(filename, 'r')
-            jour, heure, amende, distance, elapsed_time, distance_not_OK, duration_not_OK, exceeded_time, exceeded_distance = gpx_covid_regulations_check_compliance(gpx_file, Domicile)
+            jour, heure, amende, distance, elapsed_time, distance_OK, duration_OK, exceeded_time, exceeded_distance = gpx_covid_regulations_check_compliance(gpx_file, Domicile)
             gpx_file.close()
-            afficherMessage(jour, heure, amende, distance, distance_not_OK, duration_not_OK, exceeded_time, exceeded_distance)
+            afficherMessage(jour, heure, amende, elapsed_time, distance, distance_OK, duration_OK, exceeded_time, exceeded_distance)
             if amende:
                 nombre_infractions += 1
             total_distance += distance
             total_duration += elapsed_time
+            elapsed_hours = elapsed_time / 3600
+            elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
+            print("Félicitations! Vous avez couru un total de {:0.1f} km pour une durée de {}h{}mn".format(distance, int(elapsed_hours), round(elapsed_minutes)))
+
     print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
 
     total_duration_hours = total_duration / 3600

@@ -6,15 +6,15 @@
 
 {% block content %}
 <h1>Bienvenue sur mon site web développé en Flask.</h1>
-<p>Bonjour <strong>{{prenom}} {{nom}}</strong>, j'espère que vous allez bien.</p>
+<p>Bonjour <strong>{{prenom}} {{nom}}</strong>, localisé à <strong>{{found_postal_address}}</strong>, j'espère que vous allez bien.</p>
 <p>Le <strong>{{jour}}</strong>, vous avez débuté une activité sportive à <strong>{{heure}}</strong> et parcouru une distance
     autour de votre domicile de <strong>{{distance}} km</strong> pour une dur&eacute;e de <strong>{{total_duration_hours}}h{{total_duration_minutes}}mn</strong>
 </p>
-{% if distance_KO: %}
+{% if not distance_OK: %}
 <p>Vous avez d&eacute;pass&eacute; le p&eacute;rim&egrave;tre autoris&eacute; d'1km autour de votre domicile de:
     <strong>{{exceeded_distance}} km!</strong></p>
 {% endif %}
-{% if duration_KO: %}
+{% if not duration_OK: %}
 <p>Vous avez d&eacute;pass&eacute; la dur&eacute;e autoris&eacute;e d'1h autour de votre domicile de: <strong>{{exceeded_minutes}}
     minutes et {{exceeded_seconds}} secondes</strong>!</p>
 {% endif %}
