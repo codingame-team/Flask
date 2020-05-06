@@ -1,6 +1,7 @@
 # coding: utf-8
 from mapbox import Geocoder
 import requests
+import sys
 
 #
 # Fonction MapBox de "forward geocoding" pour récupérer les coordonnées GPS d'une adresse donnée
@@ -15,11 +16,18 @@ import requests
 #           Structure: "Id_Location";"Adresse Postale";"Latitude";"Longitude";"Code secteur";"Type Location"
 # Paramètres de sortie: tableau indexé [longitude, latitude] ou code d'erreur HTTP si pas d'objet JSON retourné par l'API Mapbox
 #
-def get_GPS_Coordinates_Mapbox(postal_address, api_key):
+def get_GPS_Coordinates_Mapbox(street, city, api_key):
+    print(street, file=sys.stderr)
+    print(api_key, file=sys.stderr)
     endpoint_full = "mapbox.places-permanent"  # utilisé pour des fonctions avancées payantes (on n'utilise pas!)
     endpoint = "mapbox.places"
     geocoder = Geocoder(access_token=api_key)
+    postal_address = street + " " + city
     response = geocoder.forward(postal_address)
+    # print(response,file=sys.stderr)
+    # print(postal_address,file=sys.stderr)
+    debug = response.geojson()
+    # print(debug,file=sys.stderr)
     first = response.geojson()['features'][0]
     if response.status_code == 200:
         return [round(coord, 5) for coord in first['geometry']['coordinates']]
@@ -49,7 +57,7 @@ def get_Postal_Address_Mapbox(longitude, latitude, api_key):
 # Pas besoin de clé API
 def get_GPS_Coordinates_OpenStreet_Map(postal_address, city):
     formatted_PA = postal_address.replace(" ", "+") + parse.quote(",") + "+" + city
-    print(formatted_PA)
+    #print(formatted_PA)
     # url_address = parse.urlencode(formatted_PA)
     # url_address = parse.quote(formatted_PA)
     # print(url_address)
@@ -62,13 +70,11 @@ def get_GPS_Coordinates_OpenStreet_Map(postal_address, city):
     data = json.loads(data)
     return data
 
-# (Non utilisé) Récupérer une clé d'API pour la géolocalisation Google Maps (nécessite une CB, crédit de 200$ par mois): https://developers.google.com/maps/documentation/geocoding/get-api-key
-GOOGLE_API_KEY = "AIzaSyBRcsCnUED0GjjM1Ex2nYayoGMSnBIehac"
-
-def get_GPS_Coordinates_Google_API(postal_address):
+# (Non utilisée) Récupérer une clé d'API pour la géolocalisation Google Maps (nécessite une CB, crédit de 200$ par mois): https://developers.google.com/maps/documentation/geocoding/get-api-key
+def get_GPS_Coordinates_Google_API(postal_address, api_key):
     formatted_PA = postal_address
     url_address = parse.urlencode({'address': formatted_PA})
-    url_google_map_api = "https://maps.googleapis.com/maps/api/geocode/json?address=" + url_address + "&key=" + GOOGLE_API_KEY
+    url_google_map_api = "https://maps.googleapis.com/maps/api/geocode/json?address=" + url_address + "&key=" + api_key
     # Request data from link as 'str'
     data = requests.get(url_google_map_api).text
     # convert 'str' to Json

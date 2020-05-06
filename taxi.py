@@ -3,6 +3,7 @@ import sys
 import math
 import email
 # import urllib  as URLLIB, urllib3 , urllib_ext , urllib_parse_ParseResult_overloaded, urllib5
+import os
 import os.path
 from urllib import request, parse
 import json
@@ -10,68 +11,16 @@ import json
 import re
 from email import policy
 from email.parser import BytesParser
-from email.iterators import typed_subpart_iterator
+# My modules
 import geocoding_functions as gps_api
+import text_functions as txt_func
+from dotenv import load_dotenv
 
 
 #
 # Created by philRG on 26/04/2020.
 # Copyright © 2020 philRG. All rights reserved.
 #
-
-
-#
-# Quelques fonctions de vérification de l'encodage de caractères utilisé dans le mail (au cas où) - Peut-être à supprimer (car double emploi)
-#
-def get_charset(message, default="ascii"):
-    """Get the message charset"""
-
-    if message.get_content_charset():
-        return message.get_content_charset()
-
-    if message.get_charset():
-        return message.get_charset()
-
-    return default
-
-
-def get_body(message):
-    """Get the body of the email message"""
-
-    if message.is_multipart():
-        # get the plain text version only
-        text_parts = [part for part in typed_subpart_iterator(message, 'text', 'plain')]
-        body = []
-        for part in text_parts:
-            charset = get_charset(part, get_charset(message))
-            body.append(str(part.get_payload(decode=True), charset, "replace"))
-
-        return u"\n".join(body).strip()
-
-    else:  # if it is not multipart, the payload will be a string
-        # representing the message body
-        body = str(message.get_payload(decode=True), get_charset(message), "replace")
-        return body.strip()
-
-
-#
-# Quelques fonctions de manipulation de chaînes de caractères
-#
-regex_dsup_delimiter = '>> ?\d{1,2} *'
-regex_cr_lf = '[\n\r]'
-regex_libelle_societe = '^-- TAXI MEDICAL NICE'
-regex_code_secteur = 'S\d{1,2}'
-regex_special_chars = '[^A-Za-z0-9 \-()<<\/]'
-regex_phone_number = '([0-9]{2} ){4}'
-
-def conversion_accents(chaine):
-    converter = {'é': 'e', 'è': 'e', 'ê': 'e', 'à': 'a', 'ç': 'c'}
-    result = ""
-    for c in chaine:
-        if c in converter:
-            c = converter[c]
-        result += c
-    return result
 
 
 #
@@ -105,17 +54,18 @@ class Location(object):
     #       - Longitude (obligatoire?)
     #       - Code secteur (facultatif)
     #       - Type d'emplacement (obligatoire) (adresse taxi, adresse de ramassage "pick-up" ou de destination): "T", "P", "D"
-    def __init__(self, id, postal_address, latitude, longitude, sector_code, location_type):
+    def __init__(self, id, street, city, latitude, longitude, sector_code, location_type):
         self.id = id
-        self.postal_address = postal_address
+        self.street = street
+        self.city = city
         self.latitude = latitude
         self.longitude = longitude
         self.sector_code = sector_code
         self.location_type = location_type
-        print(self)
+        #print(self)
 
     def __str__(self):
-        return "{} (id:{}), postal_address:{}, latitude:{}, longitude:{}, sector_code:{}, location_type:{}".format(self.__class__.__name__, self.id, self.postal_address, self.latitude, self.longitude, self.sector_code, self.location_type)
+        return "{} (id:{}), postal_address:{} {}, latitude:{}, longitude:{}, sector_code:{}, location_type:{}".format(self.__class__.__name__, self.id, self.street, self.city, self.latitude, self.longitude, self.sector_code, self.location_type)
 
 class Course(object):
     #   Constructeur de la classe Course
@@ -140,7 +90,7 @@ class Course(object):
         self.payment_info = payment_info
         self.duration = self.calculateDuration()
         self.distance = self.calculateDistance()
-        print(self)
+        #print(self)
 
     def calculateDistanceVolOiseau(self):
         earth_radius = 6371
@@ -174,7 +124,10 @@ class DAO_Toolbox(object):
         self.gps_locations_filename = gps_locations_filename
         self.taxi_list = self.loadTaxis(taxis_filename)
         self.gps_locations_list = self.loadGPSLocations(gps_locations_filename)
+        if self.gps_locations_list == None:
+            self.gps_locations_list = []
         self.gps_locations_count = len(self.gps_locations_list) if self.gps_locations_list != None else 0
+        #self.gps_locations_count = len(self.gps_locations_list)
         self.courses_list = self.loadCourses(courses_list)
         print(self.gps_locations_list)
 
@@ -253,25 +206,26 @@ class DAO_Toolbox(object):
     def loadGPSLocations(self, gps_locations_filename):
         try:
             gps_locations_file = open(gps_locations_filename, "r")
+            gps_locations_file.seek(1)
             gps_loc_count = len([gpsloc for gpsloc in gps_locations_file])
-            gps_locations_file.seek(0)
+            gps_locations_file.seek(1)
             if gps_loc_count == 1:
                 print("Fichier {} vide!".format(gps_locations_filename))
                 gps_locations_file.close()
                 return None
             else:
-                gps_locations_file.seek(1)
                 print("Chargement de {} position(s) GPS".format(gps_loc_count))
                 gps_locations_object_list = []
                 for line in gps_locations_file:
                     gps_location = line.split(";")
                     id_location = gps_location[0]
-                    postal_address = gps_location[1]
-                    latitude = gps_location[2]
-                    longitude = gps_location[3]
-                    sector_code = gps_location[4]
-                    location_type = gps_location[5]
-                    location_object = Location(id_location, postal_address, latitude, longitude, sector_code, location_type)
+                    street = gps_location[1]
+                    city = gps_location[2]
+                    latitude = gps_location[3]
+                    longitude = gps_location[4]
+                    sector_code = gps_location[5]
+                    location_type = gps_location[6]
+                    location_object = Location(id_location, street, city, latitude, longitude, sector_code, location_type)
                     gps_locations_object_list.append(location_object)
                 gps_locations_file.close()
                 return gps_locations_object_list
@@ -299,7 +253,7 @@ class DAO_Toolbox(object):
         else:
             output_txt = ""
             for gpsloc in self.gps_locations_list[start_index:end_index]:
-                gps_location_csv = "{};{};{};{};{};{}".format(gpsloc.id, gpsloc.postal_address, gpsloc.latitude, gpsloc.longitude, gpsloc.sector_code, gpsloc.location_type)
+                gps_location_csv = "{};{};{};{};{};{};{}".format(gpsloc.id, gpsloc.street, gpsloc.city, gpsloc.latitude, gpsloc.longitude, gpsloc.sector_code, gpsloc.location_type)
                 output_txt += "{}\n".format(gps_location_csv)
             print("Ecriture du fichier {} - {} nouvelles localisations GPS créées".format(gps_locations_filename, end_index-start_index))
             gps_locations_file.write(output_txt)
@@ -312,28 +266,32 @@ class DAO_Toolbox(object):
     # Entrée: Adresse postale
     # Sortie: "id_location" ou "None" si l'API Mapbox n'a pas localisé l'adresse
     #
-    def getLocationId(self, postal_address, sector_code, location_type):
-        gps_locations_filename = os.path.join(self.chemin, self.gps_locations_file)
+    def getLocationId(self, street, city, sector_code, location_type):
         gps_locations_file = open(gps_locations_filename, "a")
-        for gps_location_object in self.gps_locations_list:
-            #print(gps_location_object.postal_address)
-            pattern_pa = re.compile(gps_location_object.postal_address)
-            if pattern_pa.match(postal_address):
-                gps_locations_file.close()
-                return gps_location_object.id
-        result = gps_api.get_GPS_Coordinates_Mapbox(postal_address, self.api_key)
+        if len(self.gps_locations_list) > 0:
+            #print(self.gps_locations_list, file=sys.stderr)
+            for gps_location_object in self.gps_locations_list:
+                #print(gps_location_object.postal_address)
+                pattern_street = re.compile(street, re.I)
+                pattern_city = re.compile(city, re.I)
+                #print(gps_location_object)
+                if pattern_street.match(gps_location_object.street) and pattern_city.match(gps_location_object.city):
+                    gps_locations_file.close()
+                    return gps_location_object.id
+        result = gps_api.get_GPS_Coordinates_Mapbox(street, city, self.api_key)
         if len(result) == 1:
             print("Erreur de géolocalisation! Service Mapbox (code erreur HTTP {})".format(result))
             return None
         else:
+            #id_location = len(self.gps_locations_list) if self.gps_locations_list != None else 0
             id_location = len(self.gps_locations_list)
             longitude = result[0]
             latitude = result[1]
             # Création de l'objet en mémoire
-            location_object = Location(id_location, postal_address, latitude, longitude, sector_code, location_type)
+            location_object = Location(id_location, street, city, latitude, longitude, sector_code, location_type)
             self.gps_locations_list.append(location_object)
             # Ecriture de la nouvelle localisation sur disque (au cas où Mapbox se plante)
-            gps_location_csv = "{};{};{};{};{};{}\n".format(location_object.id, location_object.postal_address, location_object.latitude, location_object.longitude, location_object.sector_code, location_object.location_type)
+            gps_location_csv = "{};{};{};{};{};{};{}\n".format(location_object.id, location_object.street, location_object.city, location_object.latitude, location_object.longitude, location_object.sector_code, location_object.location_type)
             print("Ecriture dans fichier {} - 1 nouvelle localisation GPS créée".format(gps_locations_filename, location_object))
             gps_locations_file.write(gps_location_csv)
             gps_locations_file.close()
@@ -342,22 +300,24 @@ class DAO_Toolbox(object):
 
     # méthode de création d'un objet de type "Course" à partir de données d'entrées
     def createCourse(self, id_course, course):
-        course = conversion_accents(course)
+        pattern = r'(\(.*\))\s*'
+        tab = re.split(pattern, course)
+        # Supression du délimiteur - dans le champ (NOM PRENOM)
+        tab[1] = tab[1].replace("-", "")
+        course = " ".join(tab)
+        course = txt_func.conversion_accents(course)
         course = re.sub(regex_special_chars, ' ', course)
-        #print(course)
-        # template = "09H20 - (POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var - 591 Avenue Jean Aicard - RESIDENCE ST MARC BAT 7 - 06 73 80 48 45  - 06 25 18 28 24 PERE DEST Nice 2 Rue Raynardi / CPJA <<EXO OUI BT SERIE SI HOMME PRENDS COURSE, NE PAS PARLER A JUSTINE"
+        print(course, file=sys.stderr)
+        # template = "09H20 - (MARTIN JUSTINE (ADO)) Saint-Laurent-du-Var - 14 Avenue Jean Mermoz - RESIDENCE ST FIACRE BAT 7 - 06 00 00 00 00  - 06 00 00 00 01 PERE DEST Nice 20 Rue Vivien / CPJA <<EXO OUI BT SERIE SI HOMME PRENDS COURSE, NE PAS PARLER A JUSTINE"
         tab_1 = course.split("<<")
-        #print(tab_1)
         # payment info -> EXO OUI BT SERIE SI HOMME PRENDS COURSE, NE PAS PARLER A JUSTINE"
         payment_info = tab_1[1].strip()
-        #print("PROUT", payment_info)
-        #payment_info = tab_1
-        # tab_2 -> template = "09H20 - (POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var - 591 Avenue Jean Aicard - RESIDENCE ST MARC BAT 7 - 06 73 80 48 45  - 06 25 18 28 24 PERE DEST Nice 2 Rue Raynardi / CPJA
+        # tab_2 -> template = "09H20 - (MARTIN JUSTINE (ADO)) Saint-Laurent-du-Var - 14 Avenue Jean Mermoz - RESIDENCE ST FIACRE BAT 7 - 06 00 00 00 00  - 06 00 00 00 01 PERE DEST Nice 20 Rue Vivien / CPJA
         tab_2 = tab_1[0]
         tab_3 = tab_2.split(" DEST ")
         # Extraction adresse destination de la course
         # tab_4 -> template = "Nice 2 Rue Raynardi / CPJA "
-        # tab_4 -> template = "S20 Nice  CYCLOTRON - CAL - 227 Avenue de la Lanterne "
+        # tab_4 -> template = "S20 Nice  CYCLOTRON - CAL - 214 Avenue de la Pioche "
         tab_4 = tab_3[1]
         tab_4_tmp = tab_4.split(" ")
         is_sector_code = True if re.match(regex_code_secteur, tab_4_tmp[0]) else False
@@ -365,20 +325,19 @@ class DAO_Toolbox(object):
         to_city = tab_4_tmp[1] if is_sector_code else tab_4_tmp[0]
         to_street = " ".join(tab_4_tmp[2:len(tab_4_tmp)]).strip() if sector_code else " ".join(tab_4_tmp[1:len(tab_4_tmp)])
         to_street = to_street.split("/")[0].strip()
-        to_postal_address = to_street.strip() + " " + to_city.strip()
-
+        pattern = r'(\(.*\))\s*'
+        to_street = re.sub(pattern, '', to_street)
+        #to_postal_address = to_street.strip() + " " + to_city.strip()
         # Extraction informations client, heure et adresse de ramassage
-        # tab_5 -> template = "09H20 - (POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var - 591 Avenue Jean Aicard - RESIDENCE ST MARC BAT 7 - 06 73 80 48 45  - 06 25 18 28 24 PERE
-        # tab_5 -> template = "09H15 - (ROBBE CLAUDE) NICE - 12 RUE DES PONCHETTES - MAISON EN FACE DE L ARCHE- PRES DU COURS SALEYA - 06 82 56 88 06 - 04 93 13 08 28  "
-        # tab_5 -> template = "09H00 - (CARBONI EDMON - BASTIA) NICE -  NICE AEROPORT 2 - BASTIA - 06 45 27 30 75  DEST S22 NICE  HOPITAL ARCHET 1"
+        # tab_5 -> template = "09H20 - (MARTIN JUSTINE (ADO)) Saint-Laurent-du-Var - 14 Avenue Jean Mermoz - RESIDENCE ST FIACRE BAT 7 - 06 00 00 00 00  - 06 00 00 00 01 PERE
+        # tab_5 -> template = "09H15 - (ROBERT CLAUDE) NICE - 145 RUE DES MIMOSAS - MAISON EN FACE DE L ARCHE- PRES DU COURS MAXIME - 06 00 00 00 00 - 06 00 00 00 01  "
+        # tab_5 -> template = "09H00 - (DUPONT SEBASTIEN - BASTIA) NICE -  NICE AEROPORT 2 - BASTIA - 06 00 00 00 00  DEST S22 NICE  HOPITAL ARCHET 1"
         tab_5 = tab_3[0]
-        #tab_5 = re.sub('(.')
         tab_6 = tab_5.split(" - ")
-        #print("Phone 1", tab_6)
         time = tab_6[0].strip()
         # Nom contact et ville
-        # template = "(POTEZ JUSTINE (ADO)) Saint-Laurent-du-Var "
-        # template = "(CARBONI EDMON - BASTIA) NICE"
+        # template = "(MARTIN JUSTINE (ADO)) Saint-Laurent-du-Var"
+        # template = "(DUPONT SEBASTIEN - BASTIA) NICE"
         tab_field_2 = tab_6[1].strip()
         tab_field_2_tmp = tab_field_2.strip().split(" ")
         from_city = tab_field_2_tmp[-1]
@@ -386,10 +345,9 @@ class DAO_Toolbox(object):
         contact_name = contact_name_tmp[1:len(contact_name_tmp) - 1].strip()
         # Adresse et complément d'adresse
         from_street = tab_6[2]
-        from_postal_address = from_street.strip() + " " + from_city.strip()
+        #from_postal_address = from_street.strip() + " " + from_city.strip()
         # Numéros de tél de contact
         phone_list = []
-        #print("Phone", tab_6)
         for field in tab_6:
             if re.match(regex_phone_number, field):
                 phone_number = re.sub('[a-zA-Z]', '', field)
@@ -399,9 +357,19 @@ class DAO_Toolbox(object):
         position_fin_adresse = len(tab_6) - len(phone_list)
         from_address_info = " - ".join(tab_6[3:position_fin_adresse])
 
-        from_location_id = self.getLocationId(from_postal_address, sector_code, 'P')
-        print(from_location_id)
-        to_location_id = self.getLocationId(to_postal_address, sector_code, 'D')
+        # pattern = r'(\(.*\))\s*'
+        # tab = re.split(pattern, from_street)
+        # tab[1] = tab[1].replace("-", " ")
+        # from_street = " ".join(tab)
+        # tab = re.split(pattern, to_street)
+        # tab[1] = tab[1].replace("-", " ")
+        # to_street = " ".join(tab)
+
+        from_street = re.sub(regex_special_chars_sup, ' ', from_street)
+        to_street = re.sub(regex_special_chars_sup, ' ', to_street)
+
+        from_location_id = self.getLocationId(from_street, from_city, sector_code, 'P')
+        to_location_id = self.getLocationId(to_street, to_city, sector_code, 'D')
         course_Object = Course(id_course, time, from_location_id, to_location_id, contact_name, first_phone_no, second_phone_no, payment_info)
 
         return course_Object
@@ -426,10 +394,24 @@ if __name__ == '__main__':
     #
     #   Paramètres globaux du programme
     #
-    # ma clé d'API sur Mabox: https://account.mapbox.com/
-    MAPBOX_API_KEY = "pk.eyJ1IjoicG1vdXJleSIsImEiOiJjazlmcW5lMmEwZTFyM2RxbXhwd3l6eDdpIn0.0AxxOZigM-4EeTORmNAndA"
+
+    regex_dsup_delimiter = '>> ?\d{1,2} *'
+    regex_cr_lf = '[\n\r]'
+    regex_libelle_societe = "^-- {}".format(os.getenv("LIBELLE_SOCIETE"))
+    regex_code_secteur = 'S\d{1,2}'
+    regex_special_chars = '[^A-Za-z0-9 \-()<<\/]'
+    regex_special_chars_sup = '\s+[\-\/]\s+'
+    regex_phone_number = '([0-9]{2} ){4}'
 
     INSTANCE_PATH = "instance"
+
+    # ma clé d'API sur Mabox: https://account.mapbox.com/
+    #MAPBOX_API_KEY = "c'est bien caché :-)"
+    load_dotenv(os.path.join(INSTANCE_PATH, '.env'))
+    MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY")
+    print(MAPBOX_API_KEY, file=sys.stderr)
+    print(os.getenv("LIBELLE_SOCIETE"), file=sys.stderr)
+
     # Create a directory in a known location to save files to.
     uploads_dir = os.path.join(INSTANCE_PATH, 'data')
     os.makedirs(uploads_dir, exist_ok=True)
@@ -460,7 +442,7 @@ if __name__ == '__main__':
 
 
     # texte_courses = msg.get_body(preferencelist=("plain")).get_content() # version qui semble marcher aussi donc pas de nécessité d'utiliser les fonctions codées localement get_charset() et get_body()
-    texte_courses = get_body(msg)
+    texte_courses = txt_func.get_body(msg)
     #print(texte_courses)
     # Extraction des données utiles à partir du délimiteur >>
     # Enregistrement des données dans un tableau indexé "courses_tab" non structuré

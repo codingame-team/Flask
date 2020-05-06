@@ -4,22 +4,33 @@ from flask import Flask, render_template, request
 import gpx_strava_check as gpx
 from flask_debugtoolbar import DebugToolbarExtension
 from werkzeug.utils import secure_filename
+import os
 import os.path
 import logging
+import sys
 import geocoding_functions as gps_api
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
 #logging.basicConfig(level=logging.DEBUG)
+load_dotenv(os.path.join(app.instance_path, '.env'))
 
 app.config.update(
-    DEBUG=True,
-    SECRET_KEY='d66HR8dç"f_-àgjYYic*dh',
-    MAPBOX_API_KEY="pk.eyJ1IjoicG1vdXJleSIsImEiOiJjazlmcW5lMmEwZTFyM2RxbXhwd3l6eDdpIn0.0AxxOZigM-4EeTORmNAndA"
+    DEBUG=False,
+    SECRET_KEY=os.getenv("SECRET_KEY"),
+    MAPBOX_API_KEY=os.getenv("MAPBOX_API_KEY")
+    # SECRET_KEY="c'est bien caché :-),
+    # MAPBOX_API_KEY="et là aussi :-)"
 )
 toolbar = DebugToolbarExtension(app)
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 MAPBOX_API_KEY = app.config['MAPBOX_API_KEY']
+SECRET_KEY = app.config['SECRET_KEY']
+
+# print(app.instance_path, file=sys.stderr)
+# print(SECRET_KEY, file=sys.stderr)
+# print(MAPBOX_API_KEY, file=sys.stderr)
 
 # Create a directory in a known location to save files to.
 uploads_dir = os.path.join(app.instance_path, 'uploads')
@@ -42,8 +53,8 @@ def resultat():
         prenom = result['prenom']
         adresse = result['adresse']
         ville = result['ville']
-        postal_address = adresse + " " + ville
-        fw_geocoding_result = gps_api.get_GPS_Coordinates_Mapbox(postal_address, MAPBOX_API_KEY)
+        #postal_address = adresse + " " + ville
+        fw_geocoding_result = gps_api.get_GPS_Coordinates_Mapbox(adresse, ville, MAPBOX_API_KEY)
         if len(result) == 1:
             raise Exception("Erreur de géolocalisation! Service Mapbox (code erreur HTTP {})".format(result))
         else:

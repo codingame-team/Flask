@@ -19,6 +19,7 @@ MarkupSafe==1.1.1
 msgpack==1.0.0
 polyline==1.4.0
 python-dateutil==2.8.1
+python-dotenv==0.13.0
 pytz==2020.1
 requests==2.23.0
 s3transfer==0.3.3
