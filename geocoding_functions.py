@@ -17,8 +17,8 @@ import sys
 # Paramètres de sortie: tableau indexé [longitude, latitude] ou code d'erreur HTTP si pas d'objet JSON retourné par l'API Mapbox
 #
 def get_GPS_Coordinates_Mapbox(street, city, api_key):
-    print(street, file=sys.stderr)
-    print(api_key, file=sys.stderr)
+    # print(street, file=sys.stderr)
+    # print(api_key, file=sys.stderr)
     endpoint_full = "mapbox.places-permanent"  # utilisé pour des fonctions avancées payantes (on n'utilise pas!)
     endpoint = "mapbox.places"
     geocoder = Geocoder(access_token=api_key)

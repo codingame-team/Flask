@@ -22,6 +22,16 @@ from dotenv import load_dotenv
 # Copyright © 2020 philRG. All rights reserved.
 #
 
+def calculateDistanceVolOiseau(from_location, to_location):
+    earth_radius = 6371
+    longA = (math.pi / 180) * from_location.longitude
+    latA = (math.pi / 180) * from_location.latitude
+    longB = (math.pi / 180) * to_location.longitude
+    latB = (math.pi / 180) * to_location.latitude
+    X = (longB - longA) * math.cos(((latA + latB) / 2));
+    Y = latB - latA;
+    distance = math.sqrt(X * X + Y * Y) * earth_radius;
+    return distance
 
 #
 # Description des classes métier et d'accès aux données
@@ -58,11 +68,11 @@ class Location(object):
         self.id = id
         self.street = street
         self.city = city
-        self.latitude = latitude
-        self.longitude = longitude
+        self.latitude = float(latitude)
+        self.longitude = float(longitude)
         self.sector_code = sector_code
         self.location_type = location_type
-        #print(self)
+        print(self)
 
     def __str__(self):
         return "{} (id:{}), postal_address:{} {}, latitude:{}, longitude:{}, sector_code:{}, location_type:{}".format(self.__class__.__name__, self.id, self.street, self.city, self.latitude, self.longitude, self.sector_code, self.location_type)
@@ -88,19 +98,8 @@ class Course(object):
         self.first_phone_no = first_phone_no
         self.second_phone_no = second_phone_no
         self.payment_info = payment_info
-        self.duration = self.calculateDuration()
-        self.distance = self.calculateDistance()
-        #print(self)
+        print(self)
 
-    def calculateDistanceVolOiseau(self):
-        earth_radius = 6371
-        longA = (math.pi / 180) * self.from_location_id.longitude
-        latA = (math.pi / 180) * self.from_location_id.latitude
-        longB = (math.pi / 180) * self.to_location_id.longitude
-        latB = (math.pi / 180) * self.to_location_id.latitude
-        X = (longB - longA) * math.cos(((latA + latB) / 2));
-        Y = latB - latA;
-        D = math.sqrt(X * X + Y * Y) * earth_radius;
 
     def calculateDuration(self):
         duration = "15"
@@ -108,7 +107,7 @@ class Course(object):
 
     def calculateDistance(self):
         duration = "15"
-        return duration
+        return distance
 
     def __str__(self):
         return "{} id: {}, time: {}, from_location_id: {}, to_location_id: {}, contact_name: {}, first_phone_no: {}, second_phone_no: {}, payment_info: {}".format(
@@ -129,7 +128,7 @@ class DAO_Toolbox(object):
         self.gps_locations_count = len(self.gps_locations_list) if self.gps_locations_list != None else 0
         #self.gps_locations_count = len(self.gps_locations_list)
         self.courses_list = self.loadCourses(courses_list)
-        print(self.gps_locations_list)
+        #print(self.gps_locations_list)
 
     #
     # Création du planning de courses pour les taxis
@@ -206,16 +205,15 @@ class DAO_Toolbox(object):
     def loadGPSLocations(self, gps_locations_filename):
         try:
             gps_locations_file = open(gps_locations_filename, "r")
-            gps_locations_file.seek(1)
-            gps_loc_count = len([gpsloc for gpsloc in gps_locations_file])
-            gps_locations_file.seek(1)
-            if gps_loc_count == 1:
+            gps_loc_count = len([gpsloc for gpsloc in gps_locations_file])-1
+            if gps_loc_count == 0:
                 print("Fichier {} vide!".format(gps_locations_filename))
                 gps_locations_file.close()
                 return None
             else:
                 print("Chargement de {} position(s) GPS".format(gps_loc_count))
                 gps_locations_object_list = []
+                gps_locations_file.seek(0)
                 for line in gps_locations_file:
                     gps_location = line.split(";")
                     id_location = gps_location[0]
@@ -225,8 +223,9 @@ class DAO_Toolbox(object):
                     longitude = gps_location[4]
                     sector_code = gps_location[5]
                     location_type = gps_location[6]
-                    location_object = Location(id_location, street, city, latitude, longitude, sector_code, location_type)
-                    gps_locations_object_list.append(location_object)
+                    if re.match(r'\d', id_location):
+                        location_object = Location(id_location, street, city, latitude, longitude, sector_code, location_type)
+                        gps_locations_object_list.append(location_object)
                 gps_locations_file.close()
                 return gps_locations_object_list
         except IOError:
@@ -235,7 +234,6 @@ class DAO_Toolbox(object):
         except (ValueError, KeyError):
             print("Erreur inattendue lecture fichier {}: ValueError {}, KeyError {}".format(gps_locations_filename, ValueError, KeyError))
             return None
-
 
 
     #
@@ -254,7 +252,7 @@ class DAO_Toolbox(object):
             output_txt = ""
             for gpsloc in self.gps_locations_list[start_index:end_index]:
                 gps_location_csv = "{};{};{};{};{};{};{}".format(gpsloc.id, gpsloc.street, gpsloc.city, gpsloc.latitude, gpsloc.longitude, gpsloc.sector_code, gpsloc.location_type)
-                output_txt += "{}\n".format(gps_location_csv)
+                output_txt += "\n{}".format(gps_location_csv)
             print("Ecriture du fichier {} - {} nouvelles localisations GPS créées".format(gps_locations_filename, end_index-start_index))
             gps_locations_file.write(output_txt)
         gps_locations_file.close()
@@ -272,10 +270,10 @@ class DAO_Toolbox(object):
             #print(self.gps_locations_list, file=sys.stderr)
             for gps_location_object in self.gps_locations_list:
                 #print(gps_location_object.postal_address)
-                pattern_street = re.compile(street, re.I)
-                pattern_city = re.compile(city, re.I)
+                pattern_street = re.compile(gps_location_object.street, re.I)
+                pattern_city = re.compile(gps_location_object.city, re.I)
                 #print(gps_location_object)
-                if pattern_street.match(gps_location_object.street) and pattern_city.match(gps_location_object.city):
+                if pattern_street.match(street) and pattern_city.match(city):
                     gps_locations_file.close()
                     return gps_location_object.id
         result = gps_api.get_GPS_Coordinates_Mapbox(street, city, self.api_key)
@@ -291,7 +289,7 @@ class DAO_Toolbox(object):
             location_object = Location(id_location, street, city, latitude, longitude, sector_code, location_type)
             self.gps_locations_list.append(location_object)
             # Ecriture de la nouvelle localisation sur disque (au cas où Mapbox se plante)
-            gps_location_csv = "{};{};{};{};{};{};{}\n".format(location_object.id, location_object.street, location_object.city, location_object.latitude, location_object.longitude, location_object.sector_code, location_object.location_type)
+            gps_location_csv = "\n{};{};{};{};{};{};{}".format(location_object.id, location_object.street, location_object.city, location_object.latitude, location_object.longitude, location_object.sector_code, location_object.location_type)
             print("Ecriture dans fichier {} - 1 nouvelle localisation GPS créée".format(gps_locations_filename, location_object))
             gps_locations_file.write(gps_location_csv)
             gps_locations_file.close()
@@ -307,7 +305,7 @@ class DAO_Toolbox(object):
         course = " ".join(tab)
         course = txt_func.conversion_accents(course)
         course = re.sub(regex_special_chars, ' ', course)
-        print(course, file=sys.stderr)
+        #print(course, file=sys.stderr)
         # template = "09H20 - (MARTIN JUSTINE (ADO)) Saint-Laurent-du-Var - 14 Avenue Jean Mermoz - RESIDENCE ST FIACRE BAT 7 - 06 00 00 00 00  - 06 00 00 00 01 PERE DEST Nice 20 Rue Vivien / CPJA <<EXO OUI BT SERIE SI HOMME PRENDS COURSE, NE PAS PARLER A JUSTINE"
         tab_1 = course.split("<<")
         # payment info -> EXO OUI BT SERIE SI HOMME PRENDS COURSE, NE PAS PARLER A JUSTINE"
@@ -365,8 +363,11 @@ class DAO_Toolbox(object):
         # tab[1] = tab[1].replace("-", " ")
         # to_street = " ".join(tab)
 
-        from_street = re.sub(regex_special_chars_sup, ' ', from_street)
-        to_street = re.sub(regex_special_chars_sup, ' ', to_street)
+        from_street = re.sub(regex_special_chars_sup, ' ', from_street).strip()
+        to_street = re.sub(regex_special_chars_sup, ' ', to_street).strip()
+
+        from_street = re.sub(r'\s{2,}', ' ', from_street)
+        to_street = re.sub(r'\s{2,}', ' ', to_street)
 
         from_location_id = self.getLocationId(from_street, from_city, sector_code, 'P')
         to_location_id = self.getLocationId(to_street, to_city, sector_code, 'D')
@@ -409,8 +410,8 @@ if __name__ == '__main__':
     #MAPBOX_API_KEY = "c'est bien caché :-)"
     load_dotenv(os.path.join(INSTANCE_PATH, '.env'))
     MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY")
-    print(MAPBOX_API_KEY, file=sys.stderr)
-    print(os.getenv("LIBELLE_SOCIETE"), file=sys.stderr)
+    # print(MAPBOX_API_KEY, file=sys.stderr)
+    # print(os.getenv("LIBELLE_SOCIETE"), file=sys.stderr)
 
     # Create a directory in a known location to save files to.
     uploads_dir = os.path.join(INSTANCE_PATH, 'data')
@@ -464,8 +465,8 @@ if __name__ == '__main__':
     # Création de l'objet DAO pour charger la structure de données en mémoire
     DAO_Toolbox = DAO_Toolbox(uploads_dir, MAPBOX_API_KEY, taxis_filename, gps_locations_filename, courses_tab)
 
-    courses = DAO_Toolbox.courses_list
-    gps_locations = DAO_Toolbox.gps_locations_list
+    courses_object_list = DAO_Toolbox.courses_list
+    gps_locations_object_list = DAO_Toolbox.gps_locations_list
 
     #
     #   Début de l'algorithme (pour l'instant rien du tout :-DD)
@@ -475,14 +476,18 @@ if __name__ == '__main__':
     # DAO_Toolbox.createPlanning()
     output_txt = ""
     for course in courses_tab:
-        course = conversion_accents(course)
-        output_txt += "{}\n".format(re.sub(regex_special_chars, ' ', course))
+        i = courses_tab.index(course)
+        course = txt_func.conversion_accents(course).strip()
+        course = re.sub(regex_special_chars, ' ', course)
+        course_object = courses_object_list[i]
+        from_location = gps_locations_object_list[int(course_object.from_location_id)]
+        to_location = gps_locations_object_list[int(course_object.to_location_id)]
+        distance_trajet = calculateDistanceVolOiseau(from_location, to_location)
+        output_txt += "{:0.1f} km - {}\n".format(distance_trajet, course)
     fichier = open(output_filename, "w")
     print("Ecriture du fichier {} - {} nouvelles courses créées".format(fichier.name, nombre_courses))
     fichier.write(output_txt)
     fichier.close()
-
-    print("MON ADRESSE", DAO_Toolbox.getGPSLocation("1880 ROUTE DE SAINT JEANNET SAINT-LAURENT-DU-VAR"))
 
     # Enregistrement des nouvelles destinations (désactivé pour l'instant, la maj des nouvelles destinations se fait au début du traitement ligne par ligne dans le cas où l'API Mapbox retourne une erreur
     #DAO_Toolbox.updateGPSLocations()
