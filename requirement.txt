@@ -8,6 +8,7 @@ click==7.1.2
 docutils==0.15.2
 Flask==1.1.2
 Flask-DebugToolbar==0.11.0
+geojson==2.5.0
 gpxpy==1.4.0
 idna==2.9
 iso3166==1.0.1

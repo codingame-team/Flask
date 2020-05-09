@@ -12,7 +12,8 @@ import re
 from email import policy
 from email.parser import BytesParser
 # My modules
-import geocoding_functions as gps_api
+import geocoding_functions as geocoding_api
+import directions_functions as direction_api
 import text_functions as txt_func
 from dotenv import load_dotenv
 
@@ -21,17 +22,6 @@ from dotenv import load_dotenv
 # Created by philRG on 26/04/2020.
 # Copyright © 2020 philRG. All rights reserved.
 #
-
-def calculateDistanceVolOiseau(from_location, to_location):
-    earth_radius = 6371
-    longA = (math.pi / 180) * from_location.longitude
-    latA = (math.pi / 180) * from_location.latitude
-    longB = (math.pi / 180) * to_location.longitude
-    latB = (math.pi / 180) * to_location.latitude
-    X = (longB - longA) * math.cos(((latA + latB) / 2));
-    Y = latB - latA;
-    distance = math.sqrt(X * X + Y * Y) * earth_radius;
-    return distance
 
 #
 # Description des classes métier et d'accès aux données
@@ -100,7 +90,6 @@ class Course(object):
         self.payment_info = payment_info
         print(self)
 
-
     def calculateDuration(self):
         duration = "15"
         return duration
@@ -111,7 +100,7 @@ class Course(object):
 
     def __str__(self):
         return "{} id: {}, time: {}, from_location_id: {}, to_location_id: {}, contact_name: {}, first_phone_no: {}, second_phone_no: {}, payment_info: {}".format(
-            self.__class__.__name__, self.id, self.time, self.from_location_id, self.to_location_id, self.contact_name,
+            self.__class__.__name__, self.id + 1, self.time, self.from_location_id, self.to_location_id, self.contact_name,
             self.first_phone_no, self.second_phone_no, self.payment_info)
 
 # Classe d'accès aux données GPS (locales ou distantes)
@@ -276,7 +265,7 @@ class DAO_Toolbox(object):
                 if pattern_street.match(street) and pattern_city.match(city):
                     gps_locations_file.close()
                     return gps_location_object.id
-        result = gps_api.get_GPS_Coordinates_Mapbox(street, city, self.api_key)
+        result = geocoding_api.get_GPS_Coordinates_Mapbox(street, city, self.api_key)
         if len(result) == 1:
             print("Erreur de géolocalisation! Service Mapbox (code erreur HTTP {})".format(result))
             return None
@@ -386,8 +375,8 @@ class DAO_Toolbox(object):
 #       3 - Reformatage des données d'entrée (fournies par les établissement de santé) et enregistrement dans un tableau d'objets structurés (dans l'éventualité d'un stockage dans une base de données): Courses et Locations
 #       4 - Pour chaque feuille de route (course), on va calculer la distance et durée
 #       5 - Algorithme pour les affectations des courses aux taxis disponible (on ne prend pas en compte le lieu de départ du taxi) mais seulement les enchaînements de course
-#       6 - Ecriture du nouveau planning dans un fichier text "Planning.csv"
-#       7 - Mise à jour des nouvelles destinations dans le fichier "data\\locations_gps.txt"
+#       6 - Ecriture du nouveau planning dans un fichier text "Planning.txt"
+#       7 - Mise à jour des nouvelles destinations dans le fichier "data\\locations_gps.csv"
 #
 ########################################################################################################################################################################################################################################
 
@@ -419,8 +408,8 @@ if __name__ == '__main__':
 
     # Chemins d'accès aux fichiers sur le PC
     input_filename = os.path.join(uploads_dir, "Mail des resas.eml")
-    output_filename = os.path.join(uploads_dir, "Planning.csv")
-    gps_locations_filename = os.path.join(uploads_dir, "locations_gps.txt")
+    output_filename = os.path.join(uploads_dir, "Planning.txt")
+    gps_locations_filename = os.path.join(uploads_dir, "locations_gps.csv")
     taxis_filename = os.path.join(uploads_dir, "taxis.txt")
     #
     # Chargement des informations de courses dans notre base d'objets locaux
@@ -482,8 +471,13 @@ if __name__ == '__main__':
         course_object = courses_object_list[i]
         from_location = gps_locations_object_list[int(course_object.from_location_id)]
         to_location = gps_locations_object_list[int(course_object.to_location_id)]
-        distance_trajet = calculateDistanceVolOiseau(from_location, to_location)
-        output_txt += "{:0.1f} km - {}\n".format(distance_trajet, course)
+        distance_vol_oiseau = direction_api.calculateDistanceVolOiseau(from_location, to_location)
+        geojson_object_prop = direction_api.get_Directions_Mapbox(from_location, to_location, MAPBOX_API_KEY)
+        course_object.distance = geojson_object_prop['distance']
+        course_object.duration = geojson_object_prop['duration']
+        elapsed_hours = course_object.duration / 3600
+        elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
+        output_txt += "Course #{} - {:0.1f} km - {} km - {}h{}mn - {}\n".format(i+1, distance_vol_oiseau, round(course_object.distance/1000, 1), int(elapsed_hours), round(elapsed_minutes), course)
     fichier = open(output_filename, "w")
     print("Ecriture du fichier {} - {} nouvelles courses créées".format(fichier.name, nombre_courses))
     fichier.write(output_txt)
