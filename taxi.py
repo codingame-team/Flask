@@ -16,6 +16,7 @@ import geocoding_functions as geocoding_api
 import directions_functions as direction_api
 import text_functions as txt_func
 from dotenv import load_dotenv
+import datetime
 
 
 #
@@ -36,14 +37,15 @@ class Taxi(object):
     #       - Id (géré par l'application)
     #       - Nom (obligatoire?)
     #       - Id de localisation (géré par l'application)
-    def __init__(self, id, name, id_location):
+    def __init__(self, id, name, id_location, list_id_courses):
         self.id = id
         self.name = name
         self.id_location = id_location
+        self.list_id_courses = list()
+        self.liste_id_courses = list_id_courses # Liste des ids des courses
 
     def __str__(self):
-        return "{} (id:{}), name:{}, id_location:{}".format(self.__class__.__name__, self.id, self.name,
-                                                            self.id_location)
+        return "{} (id:{}), name:{}, id_location:{}, liste_id_courses:{}".format(self.__class__.__name__, self.id, self.name, self.id_location, self.liste_id_courses)
 
 class Location(object):
     #   Constructeur de la classe Location
@@ -62,7 +64,7 @@ class Location(object):
         self.longitude = float(longitude)
         self.sector_code = sector_code
         self.location_type = location_type
-        print(self)
+        #print(self)
 
     def __str__(self):
         return "{} (id:{}), postal_address:{} {}, latitude:{}, longitude:{}, sector_code:{}, location_type:{}".format(self.__class__.__name__, self.id, self.street, self.city, self.latitude, self.longitude, self.sector_code, self.location_type)
@@ -88,7 +90,8 @@ class Course(object):
         self.first_phone_no = first_phone_no
         self.second_phone_no = second_phone_no
         self.payment_info = payment_info
-        print(self)
+        self.taxi_no = -1 # Par défaut pas de taxi affecté
+        #print(self)
 
     def calculateDuration(self):
         duration = "15"
@@ -110,7 +113,7 @@ class DAO_Toolbox(object):
         self.api_key = api_key
         self.taxis_filename = taxis_filename
         self.gps_locations_filename = gps_locations_filename
-        self.taxi_list = self.loadTaxis(taxis_filename)
+        self.taxis_list = self.loadTaxis(taxis_filename)
         self.gps_locations_list = self.loadGPSLocations(gps_locations_filename)
         if self.gps_locations_list == None:
             self.gps_locations_list = []
@@ -121,22 +124,63 @@ class DAO_Toolbox(object):
 
     #
     # Création du planning de courses pour les taxis
-    # Entrée: à définir
-    # Sortie: nom de fichier output_file
+    # Entrée: La liste structurées des courses (liste d'objets de type "Course") et la liste des taxis (liste d'objets de type "Taxi"
+    # Sortie: planning des courses et affactation aux taxis
     #
-    # def createPlanning(self):
-    #     output_file = open(os.path.join(chemin, output_file), "r")
-    #     output_file = []
-    #     taxis_list.append([ligne.split(";", 4) for ligne in output_file])
-    #     taxis_file.close()
-    #     taxi_object_list = []
-    #     for taxi in taxis_list:
-    #         id_taxi = taxi[0]
-    #         nom = taxi[1]
-    #         id_location = taxi[2]
-    #         taxi_object = Taxi(id_taxi, nom, id_location)
-    #         taxi_object_list.append(taxi_object)
-    #     return taxi_object_list
+    def calculatePlanning(self, courses_object_list, taxi_object_list):
+        time_interval = datetime.timedelta(hours=0, minutes=30) # par défaut, on suppose un délai de 30' entre 2 courses
+        time_km_vol_oiseau = datetime.timedelta(hours=0, minutes=3, seconds=30)
+        #
+        # Algorithme de sélection de la première course
+        #   - Affectation aux taxis de la liste une 1ère course
+        #   - Mise à jour de la nouvelle localisation et heure d'arrivée du taxi après avoir déposé le client à sa destination
+        #
+        for i in range(len(taxi_object_list)):
+            courses_object_list[i].taxi_no = i
+            taxi_object_list[i].id_location = courses_object_list[i].to_location_id
+            time_pickup_course = datetime.datetime.strptime(courses_object_list[i].time, "%Hh%M")
+            taxi_object_list[i].available_time = time_pickup_course + time_interval
+        # Affectation de la 2ème course
+        # Création de la nouvelle liste de candidats
+        new_courses_list = [course for course in courses_object_list if courses_object_list[i].taxi_no == -1]
+        print("new_courses_list", new_courses_list, file=sys.stderr)
+        #
+        # Algorithme de sélection de la deuxième course
+        #   - Pour chaque course restante:
+        #       - Déterminer la liste de taxis disponibles susceptibles de prendre les courses restantes
+        #       - Pour chaque taxi de cette liste:
+        #           - Calculer la distance à parcourir jusqu'au client
+        #           - Calculer le temps d'attente arrivé à destination
+        #   - Pour chaque taxi identifié, il va choisir le temps d'attente le moins éloigné
+        #
+        for course in new_courses_list:
+            course.liste_available_taxis = []
+            heure_depart_course = datetime.datetime.strptime(course.time, "%Hh%M")
+            pickup_location = self.gps_locations_list[course.from_location_id]  # Localisation du client à aller chercher
+            for taxi_id in len(taxi_object_list):
+                taxi_location = self.gps_locations_list[taxi_object_list[taxi_id].id_location]  # Localisation du taxi après la première course
+                distance_vol_oiseau = direction_api.calculateDistanceVolOiseau(taxi_location, pickup_location) / 1000 # distance du taxi à parcourir (à vol d'oiseau)
+                # geojson_object_prop = direction_api.get_Directions_Mapbox(from_location, to_location, MAPBOX_API_KEY)
+                # distance = geojson_object_prop['distance']
+                # duration = geojson_object_prop['duration']
+                heure_estimee_arrivee_taxi = taxi_object_list[i].available_time +  time_km_vol_oiseau * distance_vol_oiseau
+                if heure_estimee_arrivee_taxi < heure_depart_course:
+                    temps_attente = heure_depart_course - heure_estimee_arrivee_taxi
+                    course.liste_available_taxis.append((taxi_id, distance_vol_oiseau, temps_attente))
+            course.temps_attente_moyen = avg([taxi[1] for taxi in course.liste_available_taxis])
+            course.distance_taxi_moyenne = avg([taxi[0] for taxi in course.liste_available_taxis])
+            print("attente moy: {}, distance moy: {} -> {}".format(course.temps_attente_moyen, course.distance_taxi_moyenne, course), file=sys.stderr)
+
+        # for course in new_courses_list:
+        #     taxi_found = False
+        #         for taxi_id, distance_vol_oiseau, temps_attente in course.liste_available_taxis:
+        #             if not taxi_found:
+        #                 if temps_attente < course.temps_attente_moyen and distance_vol_oiseau < course.distance_taxi_moyenne:
+        #                     taxi_found = True
+
+                # On prend le taxi le plus proche de la liste et qui soit à moins de 10'
+        #
+        return True
 
     #
     # Chargement en mémoire du tableau d'objets Courses
@@ -152,8 +196,8 @@ class DAO_Toolbox(object):
 
     #
     # Chargement en mémoire du tableau d'objets Taxi
-    # Entrée: nom de fichier ("data\\taxis.txt")
-    #           Structure: "Id taxi";"Nom";"Id_Location"
+    # Entrée: nom de fichier ("data\\taxis.csv")
+    #           Structure: "Id taxi";"Nom";"Id_Location";"Liste Id courses" (exemple: 0;15;2,7,8)
     # Sortie: liste d'objets de type taxi ou "None" si fichier vide
     #
     def loadTaxis(self, taxis_filename):
@@ -173,8 +217,10 @@ class DAO_Toolbox(object):
                     id_taxi = taxi[0]
                     nom = taxi[1]
                     id_location = taxi[2]
-                    taxi_object = Taxi(id_taxi, nom, id_location)
-                    taxi_object_list.append(taxi_object)
+                    list_id_courses = [course for course in taxi[3].split(',')] if taxi[3] != '' else None
+                    taxi_object = Taxi(id_taxi, nom, id_location, list_id_courses)
+                    if re.match(r'\d', id_taxi):
+                        taxi_object_list.append(taxi_object)
                 taxis_file.close()
                 return taxi_object_list
         except FileNotFoundError:
@@ -410,7 +456,7 @@ if __name__ == '__main__':
     input_filename = os.path.join(uploads_dir, "Mail des resas.eml")
     output_filename = os.path.join(uploads_dir, "Planning.txt")
     gps_locations_filename = os.path.join(uploads_dir, "locations_gps.csv")
-    taxis_filename = os.path.join(uploads_dir, "taxis.txt")
+    taxis_filename = os.path.join(uploads_dir, "taxis.csv")
     #
     # Chargement des informations de courses dans notre base d'objets locaux
     #
@@ -454,6 +500,7 @@ if __name__ == '__main__':
     # Création de l'objet DAO pour charger la structure de données en mémoire
     DAO_Toolbox = DAO_Toolbox(uploads_dir, MAPBOX_API_KEY, taxis_filename, gps_locations_filename, courses_tab)
 
+    taxis_object_list = DAO_Toolbox.taxis_list
     courses_object_list = DAO_Toolbox.courses_list
     gps_locations_object_list = DAO_Toolbox.gps_locations_list
 
@@ -478,9 +525,11 @@ if __name__ == '__main__':
         elapsed_hours = course_object.duration / 3600
         elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
         output_txt += "Course #{} - {:0.1f} km - {} km - {}h{}mn - {}\n".format(i+1, distance_vol_oiseau, round(course_object.distance/1000, 1), int(elapsed_hours), round(elapsed_minutes), course)
+    planning_txt = DAO_Toolbox.calculatePlanning(courses_object_list, taxis_object_list)
     fichier = open(output_filename, "w")
     print("Ecriture du fichier {} - {} nouvelles courses créées".format(fichier.name, nombre_courses))
     fichier.write(output_txt)
+    #fichier.write(planning_txt)
     fichier.close()
 
     # Enregistrement des nouvelles destinations (désactivé pour l'instant, la maj des nouvelles destinations se fait au début du traitement ligne par ligne dans le cas où l'API Mapbox retourne une erreur
