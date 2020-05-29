@@ -133,6 +133,96 @@ class DAO_Toolbox(object):
     # Sortie: planning des courses et affactation aux taxis
     #
     def calculatePlanning(self):
+        time_interval_old = datetime.timedelta(hours=0, minutes=30) # par défaut, si on suppose un délai de 30' entre 2 courses, si duration incorrecte, alors on prend cette valeur
+        time_interval = datetime.timedelta(hours=0, minutes=30) # approximation de 45' entre 2 courses
+        time_km_vol_oiseau = datetime.timedelta(hours=0, minutes=3, seconds=30)
+        #
+        # Algorithme de sélection de la première course
+        #   - Affectation aux taxis de la liste une 1ère course
+        #   - Mise à jour de la nouvelle localisation et heure d'arrivée du taxi après avoir déposé le client à sa destination
+        #       N.B.: si la durée de trajet fournie par Mapbox est fantaisiste, on définit une durée de 30'
+        #
+        for i in range(len(self.taxis_list)):
+              self.courses_list[i].taxi_no = i
+        #     self.taxis_list[i].id_location = self.courses_list[i].to_location_id     # Id de localisation où aller chercher le client
+              time_pickup_course = datetime.datetime.strptime(self.courses_list[i].time, "%Hh%M")  # Heure à laquelle il faut aller chercher le client
+        #     if self.courses_list[i].duration < 1800:
+        #         elapsed_hours = self.courses_list[i].duration / 3600
+        #         elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
+        #         course_duration = datetime.timedelta(hours=elapsed_hours, minutes=elapsed_minutes)  # Temps prévisionnel de course (calculé précemment par Mapbox)
+        #     else:
+        #         course_duration = time_interval
+              self.taxis_list[i].available_time = time_pickup_course + time_interval
+
+        # Affectation de la 2ème course
+        # Création de la nouvelle liste de candidats
+        new_courses_list = list([course for course in self.courses_list if course.taxi_no == -1])
+        # for course in new_courses_list:
+        #     print(course, file=sys.stderr)
+        #
+        # Algorithme de sélection de la deuxième course
+        #   - Pour chaque course restante:
+        #       0 - Pour chaque créneau horaire de course une liste de M courses
+        #       1 - Déterminer la liste de taxis disponibles susceptibles de prendre les courses restantes et pour chaque taxi de cette liste:
+        #           - Calculer la distance à parcourir jusqu'au client
+        #           - Calculer le temps d'attente arrivé à destination
+        #       2 - Calcul de la distance moyenne et du temps d'attente moyen
+        #       3 - Selection du taxi le plus proche dont le temps d'attente pour le taxi est inférieur au temps d'attente moyen, sinon on choisit le taxi avec le moins d'attente (peu importe l'éloignement)
+        #       4 - Mise à jour de la nouvelle localisation et heure d'arrivée du taxi après avoir déposé le client à sa destination
+        for course in new_courses_list:
+            course.liste_available_taxis = []
+            #course.liste_available_taxis = list()
+            heure_depart_course = datetime.datetime.strptime(course.time, "%Hh%M")
+            pickup_location = self.gps_locations_list[course.from_location_id]  # Localisation du client à aller chercher
+            # 1 - Déterminer la liste de taxis disponibles susceptibles de prendre les courses restantes et pour chaque taxi de cette liste:
+            #       - Calculer la distance à parcourir jusqu'au client
+            #       - Calculer le temps d'attente arrivé à destination
+            for taxi_id in range(len(self.taxis_list)):
+                taxi_location_id = self.taxis_list[taxi_id].id_location
+                #taxi_location = self.gps_locations_list[taxi_location_id]  # Localisation du taxi après la première course
+                # distance du taxi à parcourir (à vol d'oiseau) pour rejoindre cette course. La durée moyenne pour parcourir un km est fixée à 3mn30 (eb début de fonction)
+                #   N.B.: on n'utilise pas l'API Mapbox dans ce cas car le compte actuel est limité à 60 requêtes par minute...
+                #distance_vol_oiseau = direction_api.calculateDistanceVolOiseau(taxi_location, pickup_location)
+                # Utilisation de l'API Mapbox ultérieure?
+                # geojson_object_prop = direction_api.get_Directions_Mapbox(from_location, to_location, MAPBOX_API_KEY)
+                # distance = geojson_object_prop['distance']
+                # duration = geojson_object_prop['duration']
+                #heure_estimee_arrivee_taxi = taxis_object_list[taxi_id].available_time +  time_km_vol_oiseau * distance_vol_oiseau
+                heure_estimee_arrivee_taxi = taxis_object_list[taxi_id].available_time
+                if heure_estimee_arrivee_taxi < heure_depart_course:
+                    temps_attente = heure_depart_course - heure_estimee_arrivee_taxi
+                    course.liste_available_taxis.append((taxi_id, temps_attente))
+            if len(course.liste_available_taxis) != 0:
+                # 2 - Calcul de la distance moyenne et du temps d'attente moyen
+                # Attention: la structure de données taxi ici est un "tuple" au sens du langage Python (utilisée temporairement pour l'algorithme) et non un objet métier de type "Taxi"
+                list_durations = list([taxi[1] for taxi in course.liste_available_taxis])
+                #list_distances = list([taxi[1] for taxi in course.liste_available_taxis])
+                #closest_taxi = min(course.liste_available_taxis, key = lambda x: x[1])
+                list_taxis = list([str(taxi[0]) for taxi in course.liste_available_taxis])
+                course.temps_attente_moyen = stat_func.Average(list_durations)
+                #course.distance_taxi_moyenne = stat_func.Average(list_distances)
+                # 3 - Selection du taxi le plus proche dont le temps d'attente pour le taxi est inférieur au temps d'attente moyen, sinon on choisit le taxi avec le moins d'attente (peu importe l'éloignement)
+                # taxis_candidates = list([taxi for taxi in course.liste_available_taxis if taxi[1] <= course.distance_taxi_moyenne and taxi[2] <= course.temps_attente_moyen])
+                taxis_candidates = list([taxi for taxi in course.liste_available_taxis if taxi[1] <= course.temps_attente_moyen])
+                if len(taxis_candidates) != 0:
+                    best_taxi = min(taxis_candidates, key = lambda x: x[1]) # on choisit le taxi avec le moins de temps d'attente
+                    self.courses_list[course.id].taxi_no = best_taxi[0]
+                    self.courses_list[course.id].taxi_attente = best_taxi[1]
+                    #  4 - Mise à jour de la nouvelle localisation et heure d'arrivée du taxi après avoir déposé le client à sa destination
+                    taxi_id = best_taxi[0]
+                    #self.taxis_list[taxi_id].id_location = course.to_location_id     # Id de localisation où aller chercher le client
+                    time_pickup_course = datetime.datetime.strptime(course.time, "%Hh%M")  # Heure à laquelle il faut aller chercher le client
+                    course_duration = time_interval
+                    self.taxis_list[taxi_id].available_time = time_pickup_course + course_duration
+                    print("attente moy: {}, available taxis ({}) -> {}".format(course.temps_attente_moyen, ",".join(list_taxis), course), file=sys.stderr)
+
+
+    #
+    # Création du planning de courses pour les taxis
+    # Entrée: La liste structurées des courses (liste d'objets de type "Course") et la liste des taxis (liste d'objets de type "Taxi"
+    # Sortie: planning des courses et affactation aux taxis
+    #
+    def calculatePlanningOld(self):
         time_interval = datetime.timedelta(hours=0, minutes=30) # par défaut, si on suppose un délai de 30' entre 2 courses, si duration incorrecte, alors on prend cette valeur
         time_km_vol_oiseau = datetime.timedelta(hours=0, minutes=3, seconds=30)
         #

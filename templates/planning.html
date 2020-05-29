@@ -1,0 +1,12 @@
+{# app/templates/homepage.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}Planning{% endblock %}
+
+{% block content %}
+<h1>Planning taxi pour le {{tomorrow}} généré par {{prenom}} {{nom}} le {{today}}</h1>
+<p>{{output_txt}}</p>
+{% endblock %}
+
+{% block footer %}<a href="/">Retour à la page d'accueil</a>{% endblock %}

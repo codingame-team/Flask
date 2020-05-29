@@ -1,0 +1,29 @@
+{# app/templates/homepage.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<h1>Page de réservation taxis</h1>
+<p></p>
+<form method="post" enctype="multipart/form-data" action="/planning">
+    <div>
+        <label>Nom :</label> <input type="text" name="nom"/>
+    </div>
+    <div>
+        <label>Prénom :</label> <input type="text" name="prenom"/>
+    </div>
+    <div>
+        <label>Date :</label> <input type="date" name="date"/>
+    </div>
+    <div>
+        <label for="eml_file">fichier EML</label>
+        <input type=file name="eml_file" id="eml_file">
+    </div>
+    <div class="button">
+        <button type="submit">Envoyer le fichier</button>
+    </div>
+</form>
+
+{% endblock %}
