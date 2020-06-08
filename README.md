@@ -1,12 +1,9 @@
 # Flask
-Projet pour porter sur le web mes scripts Python. Comme ils sont développés en couches, cela rend la tâche plus facile. 
-Avec les framework web, il faut y aller progressivement, et commencer simplement.
+Framework web light utilisé pour porter rapidement des applications Python sur le web. Comme ils sont développés en couches, cela rend la tâche plus facile. 
 
-Un bon tutoriel ultra-simpliste pour se familiariser à l'environnement: https://www.kaherecode.com/tutorial/demarrer-avec-flask-un-micro-framework-python
+Pour débuter, un petit tutoriel pour se familiariser au framework: https://www.kaherecode.com/tutorial/demarrer-avec-flask-un-micro-framework-python
 
 Cela suppose de connaître quelques bases sur l'HTML/CSS, le protocole HTTP et les CGI, ainsi que quelques bases sur le fonctionnement des moteurs de template HTML (Jinja dans ce cas pour Flask).
-
-N.B.: ce projet n'inclut pas de base de données
 
 Un outil en ligne pour construire et vérifier ses feuilles CSS (on pourra s'inspirer de modèles CSS glanés sur le web): https://codepen.io/
 
