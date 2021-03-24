@@ -12,4 +12,3 @@ Quelques spécificités intéressantes du projet:
 - Il montre les différentes couches utilisées (Front-End et Back-End) et met en valeur les caractéristiques de chacun de ces métiers.
 - Il permet d'intégrer des algorithmes de calcul et s'y concentrer sans avoir à s'occuper des autres couches.
 
-Site en production! https://pmourey.pythonanywhere.com/ (u/p: phil/mic2020)
