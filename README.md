@@ -1,7 +1,7 @@
 # Flask
 Framework web light utilisé pour porter rapidement des applications Python sur le web. Comme ils sont développés en couches, cela rend la tâche plus facile. 
 
-Pour débuter, un petit tutoriel pour se familiariser au framework: https://www.kaherecode.com/tutorial/demarrer-avec-flask-un-micro-framework-python
+Pour débuter, un petit [tutoriel](https://renaud-detry.net/teaching/flask/index.html) pour se familiariser au framework
 
 Cela suppose de connaître quelques bases sur l'HTML/CSS, le protocole HTTP et les CGI, ainsi que quelques bases sur le fonctionnement des moteurs de template HTML (Jinja dans ce cas pour Flask).
 
