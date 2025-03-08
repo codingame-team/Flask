@@ -2,52 +2,73 @@
 import re
 import os.path
 import sys
-import math
-import gpxpy
-import gpxpy.gpx
+from typing import TextIO
+from math import radians, sin, cos, sqrt, atan2, pi
+
+from gpxpy import parse
+# import gpxpy
+# import gpxpy.gpx
+from gpxpy.gpx import GPX
 import locale
 import time
 from datetime import datetime
 from pytz import timezone
 
+from common import get_strava_path, resource_path
+
+
 #
 # Created by Philippe Mourey on 27/04/2020.
 # Copyright © 2020 philRG. All rights reserved.
 #
+#   https://pypi.org/project/gpxpy/
 #
 # Classes métier "Position_GPS"
 #
 class Position_GPS(object):
-    def __init__(self, longitude, latitude, lieu_dit):
+    def __init__(self, latitude, longitude, lieu_dit):
         self.longitude = float(longitude)
         self.latitude = float(latitude)
         self.lieu_dit = lieu_dit
         #print(float(self.longitude), float(self.latitude))
 
-    def calculateDistanceVolOiseau(self, other):
+    def calculateDistanceVolOiseau_old(self, other):
         earth_radius = 6371
-        longA = (math.pi / 180) * self.longitude
-        latA = (math.pi / 180) * self.latitude
-        longB = (math.pi / 180) * other.longitude
-        latB = (math.pi / 180) * other.latitude
-        X = (longB - longA) * math.cos(((latA + latB) / 2))
+        longA = (pi / 180) * self.longitude
+        latA = (pi / 180) * self.latitude
+        longB = (pi / 180) * other.longitude
+        latB = (pi / 180) * other.latitude
+        X = (longB - longA) * cos(((latA + latB) / 2))
         Y = latB - latA
-        D = math.sqrt(X * X + Y * Y) * earth_radius
+        D = sqrt(X * X + Y * Y) * earth_radius
         return D
+
+    def calculateDistanceVolOiseau(self, other) -> float:
+        """Calculate great-circle distance between two points using Haversine formula."""
+        R = 6371.0  # Earth radius in km
+        lat1, lon1 = map(radians, (self.latitude, self.longitude))
+        lat2, lon2 = map(radians, (other.latitude, other.longitude))
+
+        a = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+        return 2 * R * atan2(sqrt(a), sqrt(1 - a))
+
 
 #
 # Fonction d'analyse d'un fichier GPX par rapport aux règles de confinement (durée d'1h et ne pas dépasser un rayon de 1km autour du domicile)
 #   Paramètre de sortie: (Boolean, running_distance, running_duration)
-def gpx_covid_regulations_check_compliance(gpx_file, domicile):
+def gpx_covid_regulations_check_compliance(gpx_file: TextIO, domicile: Position_GPS):
     d_max = 1.0
     d_runner = 0.0
-    gpx = gpxpy.parse(gpx_file)
+    gpx: GPX = parse(gpx_file)
+    moving_time, stopped_time, moving_distance, stopped_distance, max_speed_ms = gpx.get_moving_data()
+    max_speed_kmh = max_speed_ms * 60 ** 2 / 1000
+    print(f'max_speed= {max_speed_kmh} km/h')
     for track in gpx.tracks:
         for segment in track.segments:
             for point in segment.points:
                 gps_pos = Position_GPS(point.longitude, point.latitude, "")
                 distance = domicile.calculateDistanceVolOiseau(gps_pos)
-                if distance > d_max and distance > d_runner:
+                if distance > d_runner:
                     d_runner = distance
 
     #
@@ -104,31 +125,32 @@ def gpx_covid_regulations_check_compliance(gpx_file, domicile):
 
     return day, hour, amende, distance3d, elapsed_time, distance_OK, duration_OK, exceeded_time, exceeded_distance
 
+
+def afficherMessage(day, hour, amende, elapsed_time, distance, distance_OK, duration_OK, exceeded_time, exceeded_distance):
+    elapsed_hours = elapsed_time / 3600
+    elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
+    print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
+    print("Le {}, vous avez débuté une activité sportive à {} et parcouru une distance autour de votre domicile de {:0.1f} km pour une durée de {}h{}mn".format(day, hour, distance, int(elapsed_hours), round(elapsed_minutes)))
+    if not distance_OK:
+        print("Vous avez dépassé le périmètre autorisé d'1km autour de votre domicile de: {:0.3f} km!".format(exceeded_distance))
+    if not duration_OK:
+        exceeded_minutes = exceeded_time / 3600
+        exceeded_seconds = (exceeded_minutes - int(exceeded_minutes)) * 60
+        print("Vous avez dépassé la durée autorisée d'1h autour de votre domicile de: {} minutes et {} secondes!".format(round(exceeded_minutes), round(exceeded_seconds)))
+    if amende == True:
+        print("Vous devez payer une amende de 135€!")
+    else:
+        print("Félicitations {}, vous avez correctement suivi les directives de confinement pendant cette activité sportive!")
+
 if __name__ == '__main__':
-
-    def afficherMessage(day, hour, amende, elapsed_time, distance,  distance_OK, duration_OK, exceeded_time, exceeded_distance):
-        elapsed_hours = elapsed_time / 3600
-        elapsed_minutes = (elapsed_hours - int(elapsed_hours)) * 60
-        print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
-        print("Le {}, vous avez débuté une activité sportive à {} et parcouru une distance autour de votre domicile de {:0.1f} km pour une durée de {}h{}mn".format(
-                day, hour, distance, int(elapsed_hours), round(elapsed_minutes)))
-        if not distance_OK:
-            print("Vous avez dépassé le périmètre autorisé d'1km autour de votre domicile de: {:0.3f} km!".format(
-                exceeded_distance))
-        if not duration_OK:
-            exceeded_minutes = exceeded_time / 3600
-            exceeded_seconds = (exceeded_minutes - int(exceeded_minutes)) * 60
-            print("Vous avez dépassé la durée autorisée d'1h autour de votre domicile de: {} minutes et {} secondes!".format(
-                    round(exceeded_minutes), round(exceeded_seconds)))
-        if amende == True:
-            print("Vous devez payer une amende de 135€!")
-        else:
-            print("Félicitations {}, vous avez correctement suivi les directives de confinement pendant cette activité sportive!")
-
-
     # Paramètres globaux de l'application
-    chemin = "C:\\Users\\User\\source\\repos\\Strava"
-    Domicile = Position_GPS(43.683708, 7.179375, "Domicile")
+    path = os.path.dirname(__file__)
+    abspath = os.path.abspath(path)
+    gpx_strava_path = get_strava_path()
+    if gpx_strava_path and not os.path.exists(gpx_strava_path):
+        os.makedirs(gpx_strava_path)
+
+    domicile: Position_GPS = Position_GPS(43.683708, 7.179375, "Domicile")
 
     #
     # Analyse après relevé manuel des points les plus éloignés dans Google Maps
@@ -140,8 +162,8 @@ if __name__ == '__main__':
     print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
     print("Données de test de la fonction de calcul de distance à vol d'oiseau")
     for point in list([A,B,C]):
-        distance = Domicile.calculateDistanceVolOiseau(point)
-        print("Distance vol d'oiseau {} -> {} = {:0.3f} km".format(Domicile.lieu_dit, point.lieu_dit,distance))
+        distance = domicile.calculateDistanceVolOiseau(point)
+        print("Distance vol d'oiseau {} -> {} = {:0.3f} km".format(domicile.lieu_dit, point.lieu_dit, distance))
 
     nombre_infractions = 0
     total_distance = 0
@@ -150,11 +172,10 @@ if __name__ == '__main__':
     elapsed_minutes = 0
     print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
     print("Analyse des fichiers GPX dans le répertoire courant")
-    for filename in sorted(os.listdir(chemin)):
+    for filename in sorted(os.listdir(gpx_strava_path)):
         if filename.endswith('.gpx'):
-            gpx_file = open(filename, 'r')
-            jour, heure, amende, distance, elapsed_time, distance_OK, duration_OK, exceeded_time, exceeded_distance = gpx_covid_regulations_check_compliance(gpx_file, Domicile)
-            gpx_file.close()
+            with open(resource_path(f'{gpx_strava_path}/{filename}'), 'r') as gpx_file:
+                jour, heure, amende, distance, elapsed_time, distance_OK, duration_OK, exceeded_time, exceeded_distance = gpx_covid_regulations_check_compliance(gpx_file, domicile)
             afficherMessage(jour, heure, amende, elapsed_time, distance, distance_OK, duration_OK, exceeded_time, exceeded_distance)
             if amende:
                 nombre_infractions += 1
