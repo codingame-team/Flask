@@ -131,11 +131,10 @@ def decathlon_main():
 	sns.set_style("whitegrid")
 
 	# Define plot configurations
-	plot_configs = [{'metric': 'Distance', 'color': '#1f77b4',  # blue
-		'ylabel': 'Distance (km)'}, {'metric': 'Duration', 'color': '#2ca02c',  # green
-		'ylabel': 'Duration (hours)'}, {'metric': 'Average_Speed', 'color': '#d62728',  # red
-		'ylabel': 'Average Speed (km/h)'}, {'metric': 'Max_Speed', 'color': '#9467bd',  # purple
-		'ylabel': 'Max Speed (km/h)'}]
+	plot_configs = [{'metric': 'Distance', 'color': 'blue', 'ylabel': 'Distance (km)'},
+					{'metric': 'Duration', 'color': 'green', 'ylabel': 'Duration (hours)'},
+					{'metric': 'Average_Speed', 'color': 'red', 'ylabel': 'Average Speed (km/h)'},
+					{'metric': 'Max_Speed', 'color': 'purple', 'ylabel': 'Max Speed (km/h)'}]
 
 	# Create DataFrame
 	df = create_dataframe(activities=get_activities())
